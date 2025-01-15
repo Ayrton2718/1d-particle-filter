@@ -1,4 +1,4 @@
 /**:
    ros__parameters:
-      map_dir: "src/localization/map/lc_map/config/"
-      map_name: "abu2024_blue"
+      map_dir: "src/1d-particle-filter/map/lc_map/config/"
+      map_name: "aws_small_warehouse"
