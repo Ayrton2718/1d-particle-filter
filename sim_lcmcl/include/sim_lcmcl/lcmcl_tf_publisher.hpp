@@ -17,7 +17,6 @@
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
 #include <std_msgs/msg/string.hpp>
-#include <tut_tool/tut_tool.hpp>
 #include <lc_map/lc_tf.hpp>
 #include <lc_map/lc_map.hpp>
 
@@ -54,7 +53,7 @@ public:
     LcmclTfPublisher(const std::string &name_space, const rclcpp::NodeOptions &options = rclcpp::NodeOptions()) 
         : blackbox::BlackBoxNode(blackbox::debug_mode_t::RELEASE, "lcmcl_tf_publisher", name_space, options)
     {
-        this->_tf = std::make_shared<lc::Tf>(this, std::chrono::milliseconds(5000));
+        this->_tf = std::make_shared<lc::Tf>(this);
         _tf->enable_send_tf();
 
         this->_est_pos_sub = this->create_subscription<lcmcl_msgs::msg::Localization>("est_localization", rclcpp::QoS(1).reliable(), std::bind(&LcmclTfPublisher::est_subscriber, this, std::placeholders::_1));    }

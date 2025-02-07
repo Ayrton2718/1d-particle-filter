@@ -42,9 +42,6 @@ private:
     rclcpp::TimerBase::SharedPtr                                        _map_pub_tim;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr  _map_pub;
 
-    float _max_range;
-    float _min_range;
-
     double origin_x, origin_y, origin_theta; // Map origin
     double resolution; // Map resolution (meters per cell)
     int size_x, size_y; // Map dimensions (number of cells)
@@ -59,12 +56,12 @@ private:
 
 public:
     Map(){}
-    Map(blackbox::BlackBoxNode* node, std::shared_ptr<Tf> tf, float min_range = 0.1, float max_range = 30)
+    Map(blackbox::BlackBoxNode* node)
     {
-        this->Map_cons(node, tf, min_range, max_range);
+        this->Map_cons(node);
     }
 
-    void Map_cons(blackbox::BlackBoxNode* node, std::shared_ptr<Tf> tf, float min_range = 0, float max_range = 30)
+    void Map_cons(blackbox::BlackBoxNode* node)
     {
         this->_node = node;
 
@@ -72,9 +69,6 @@ public:
         _info = std::make_unique<blackbox::Logger>();
         _error->init(node, blackbox::ERR, "lc_map");
         _info->init(node, blackbox::INFO, "lc_map");
-
-        this->_min_range = min_range;
-        this->_max_range = max_range;
 
         this->origin_x = 0;
         this->origin_y = 0;
@@ -98,9 +92,6 @@ public:
     {
         this->_node = node;
 
-        this->_min_range = 0;
-        this->_max_range = 10;
-
         this->origin_x = 0;
         this->origin_y = 0;
         this->origin_theta = 0;
@@ -119,19 +110,19 @@ public:
         this->_map_pub_tim = NULL;
     }
 
-    // void enable_publish_map(void)
-    // {
-    //     this->_map_pub = this->_node->create_publisher<visualization_msgs::msg::MarkerArray>("line_map", rclcpp::SensorDataQoS());
-    //     this->m_cb_grp1 = this->_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-    //     this->_map_pub_tim = this->_node->create_wall_timer(std::chrono::milliseconds(100), std::bind(&Map::map_publisher, this), this->m_cb_grp1);
-    // }
+    void enable_publish_map(void)
+    {
+        // this->_map_pub = this->_node->create_publisher<visualization_msgs::msg::MarkerArray>("line_map", rclcpp::SensorDataQoS());
+        // this->m_cb_grp1 = this->_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+        // this->_map_pub_tim = this->_node->create_wall_timer(std::chrono::milliseconds(100), std::bind(&Map::map_publisher, this), this->m_cb_grp1);
+    }
 
-    laser_t calculate_range(pos_t pos)
+    laser_t calculate_range(pos_t pos, float max_range)
     {
         int x0 = worldToMapX(pos.x);
         int y0 = worldToMapY(pos.y);
-        int x1 = worldToMapX(pos.x + this->_max_range * cos(pos.rad));
-        int y1 = worldToMapY(pos.y + this->_max_range * sin(pos.rad));
+        int x1 = worldToMapX(pos.x + max_range * cos(pos.rad));
+        int y1 = worldToMapY(pos.y + max_range * sin(pos.rad));
 
         bool steep = std::abs(y1 - y0) > std::abs(x1 - x0);
         if (steep) {
@@ -170,7 +161,7 @@ public:
 
         laser_t laser;
         laser.hit_type = -1;
-        laser.range = _max_range;
+        laser.range = max_range;
         return laser;
     }
 

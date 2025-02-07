@@ -17,13 +17,10 @@
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
 #include <std_msgs/msg/string.hpp>
-#include <tut_tool/tut_tool.hpp>
 
 #include "sim/sim_odometry.hpp"
 #include "sim/sim_sick.hpp"
 #include <lc_map/lc_tf.hpp>
-
-#include <lcmcl_topics/lcmcl_topics.hpp>
 
 #define MY_JOY
 
@@ -39,13 +36,10 @@ private:
     std::shared_ptr<lc::Map>     _map;
     std::shared_ptr<lc::Tf>     _tf;
 
-    rclcpp::Publisher<lcmcl_msgs::msg::Laser>::SharedPtr            _laser_pub;
-    rclcpp::Publisher<lcmcl_msgs::msg::Odometry>::SharedPtr         _odom_pub;
-
     rclcpp::TimerBase::SharedPtr                                    _odom_pub_tim;
 
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr          _joy_sub;
-    rclcpp::Publisher<lcmcl_msgs::msg::Localization>::SharedPtr     _true_pos_pub;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr _true_odom_pub;
 
     const uint32_t  _odom_interval = 10;
 
@@ -56,34 +50,31 @@ private:
     pos_t _avg_err = {0, 0, 0};
     pos_t _disp_err = {0, 0, 0};
 
-    lcmcl::Localization _topics;
+    blackbox::Logger _info;
 
 public:
     LcmclSimulator(const rclcpp::NodeOptions &options = rclcpp::NodeOptions()) : LcmclSimulator("", options){}
     LcmclSimulator(const std::string &name_space, const rclcpp::NodeOptions &options = rclcpp::NodeOptions()) 
         : blackbox::BlackBoxNode(blackbox::debug_mode_t::RELEASE, "sim_lcmcl", name_space, options)
     {
-        this->_tf = std::make_shared<lc::Tf>(this, std::chrono::milliseconds(5000));
+        _info.init(this, blackbox::INFO, "sim_info");
+
+        this->_tf = std::make_shared<lc::Tf>(this);
         this->_true_pos = _tf->get_initial_pos();
         
-        this->_map = std::make_shared<lc::Map>(this, _tf);
+        this->_map = std::make_shared<lc::Map>(this);
 
-        _odometry.init(this, _tf->get_initial_pos(), _tf);
+        _odometry.init(this, _tf->get_initial_pos());
         _sick.init(this,  _map, _tf);
 
-        this->_laser_pub = this->create_publisher<lcmcl_msgs::msg::Laser>("sensor_laser", rclcpp::QoS(1).reliable());
-
-        this->_true_pos_pub = this->create_publisher<lcmcl_msgs::msg::Localization>("true_localization", rclcpp::QoS(1).reliable());
+        this->_true_odom_pub = this->create_publisher<nav_msgs::msg::Odometry>("true_odom", 10);
         this->_joy_sub = this->create_subscription<sensor_msgs::msg::Joy>("/joy", 10, std::bind(&LcmclSimulator::joy_subscriber, this, std::placeholders::_1));
-        this->_odom_pub = this->create_publisher<lcmcl_msgs::msg::Odometry>("sensor_odometry", rclcpp::QoS(1).reliable());
 
         this->_cmd_pos.x = 0;
         this->_cmd_pos.y = 0;
         this->_cmd_pos.rad = 0;
 
         this->_odom_pub_tim = this->create_wall_timer(std::chrono::milliseconds(this->_odom_interval), std::bind(&LcmclSimulator::odom_est_publisher, this));
-
-        _topics.init(this);
     }
 
     void joy_subscriber(const sensor_msgs::msg::Joy::SharedPtr msg)
@@ -121,19 +112,23 @@ public:
         this->_true_pos.y += d_y;
         this->_true_pos.rad += d_rad;
 
-        auto odom_msg = this->_odometry.sim(_true_pos);
-        std::get<0>(odom_msg).header.stamp = this->get_clock()->now();
-        _odom_pub->publish(std::get<0>(odom_msg));
+        this->_odometry.publish(_true_pos);
 
-        lcmcl_msgs::msg::Laser laser = this->_sick.sim(_true_pos, std::get<1>(odom_msg), std::get<2>(odom_msg));
-        laser.header.stamp = this->get_clock()->now();
-        _laser_pub->publish(laser);
+        this->_sick.publish(_true_pos);
 
-        lcmcl_msgs::msg::Localization true_msg;
-        true_msg.header.stamp = this->get_clock()->now();
-        true_msg.abs_x = _true_pos.x;
-        true_msg.abs_y = _true_pos.y;
-        true_msg.abs_rad = _true_pos.rad;
-        _true_pos_pub->publish(true_msg);
+        auto now = this->get_clock()->now();
+        nav_msgs::msg::Odometry true_odom;
+        true_odom.header.stamp = now;
+        true_odom.header.frame_id = "odom";
+        true_odom.child_frame_id  = "base_link";
+        true_odom.pose.pose.position.x = this->_true_pos.x;
+        true_odom.pose.pose.position.y = this->_true_pos.y;
+        true_odom.pose.pose.position.z = 0.0;
+        tf2::Quaternion q;
+        q.setRPY(0, 0, this->_true_pos.rad);
+        true_odom.pose.pose.orientation = tf2::toMsg(q);
+        _true_odom_pub->publish(true_odom);
+
+        this->_tf->set_true(_true_pos, this->get_clock()->now());
     }
 };

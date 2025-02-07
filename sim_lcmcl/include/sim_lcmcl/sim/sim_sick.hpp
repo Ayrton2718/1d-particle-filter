@@ -7,30 +7,33 @@
 
 #include <lcmcl_msgs/msg/laser.hpp>
 
-#include <lc_map/lc_area.hpp>
 #include <lc_map/lc_tf.hpp>
-#include <lcmcl_topics/lcmcl_laser.hpp>
 
 namespace sim
 {
-class Sick : private Area
+class Sick
 {
 private:
-    static constexpr float sick_height = 0.05;
-
     blackbox::BlackBoxNode* _node;
+    blackbox::Logger        _info;
 
     std::random_device          _gn_seed_gen;
     std::default_random_engine  _gn_engine;
 
-    lcmcl_topics::LaserMsg _laser_msg;
-
     std::shared_ptr<Map>                 _map;
-    std::array<std::vector<int>, 6>     _target_obs;
-    std::vector<int>     _target_obs100;
+
+    struct range_info_t{
+        std::string link_name;
+        lc::pos_t   pos;
+        float       range;
+        blackbox::PubRecord<sensor_msgs::msg::Range> pub;
+    };
+
+    blackbox::Param<std::vector<std::string>>   _laser_topics;
+    std::vector<std::shared_ptr<range_info_t>>  _laser_info;
 
 public:
-    Sick() : Area(), _gn_engine(_gn_seed_gen())
+    Sick() : _gn_engine(_gn_seed_gen())
     {
     }
 
@@ -38,109 +41,66 @@ public:
     {
         this->_node = node;
         this->_map = map;
+        _info.init(node, blackbox::LIB_DEBUG, "sick");
 
-        _target_obs[height_index(height_type_t::height_0)].push_back(map->get_obs_index("area1_wall"));
-        _target_obs[height_index(height_type_t::height_0)].push_back(map->get_obs_index("area1_hill"));
+        _laser_topics.init(node, "range_topics", {"laser1", "laser2", "laser3", "laser4"});
 
-        _target_obs[height_index(height_type_t::height_100)].push_back(map->get_obs_index("area2_wall"));
-        _target_obs[height_index(height_type_t::height_100)].push_back(map->get_obs_index("area2_hill"));
-        _target_obs[height_index(height_type_t::height_100)].push_back(map->get_obs_index("area23_wall"));
+        auto topics = _laser_topics.get();
+        for(auto topic : topics)
+        {
+            std::string link_name = topic;
+            std::string prefix = "/waffle_1d/";
+            if (topic.find(prefix) == 0) {
+                link_name = link_name.substr(prefix.length());
+            }
 
-        _target_obs[height_index(height_type_t::height_200)].push_back(map->get_obs_index("area23_wall"));
-        _target_obs[height_index(height_type_t::height_200)].push_back(map->get_obs_index("area3_wall"));
-        _target_obs[height_index(height_type_t::height_200)].push_back(map->get_obs_index("silo_wall"));
+            std::string target = "_range";
+            std::string replacement = "_link";
+            size_t pos = link_name.find(target);
+            if (pos != std::string::npos) {
+                link_name.replace(pos, target.length(), replacement);
+            }
 
-        _target_obs[height_index(height_type_t::height_slope1)].push_back(map->get_obs_index("area1_wall"));
-        _target_obs[height_index(height_type_t::height_slope1)].push_back(map->get_obs_index("area2_wall"));
-        _target_obs[height_index(height_type_t::height_slope1)].push_back(map->get_obs_index("area23_wall"));
 
-        _target_obs[height_index(height_type_t::height_slope2)].push_back(map->get_obs_index("area2_wall"));
-        _target_obs[height_index(height_type_t::height_slope2)].push_back(map->get_obs_index("area23_wall"));
-        _target_obs[height_index(height_type_t::height_slope2)].push_back(map->get_obs_index("area3_wall"));
+            auto info = std::make_shared<range_info_t>();
+            info->link_name = link_name;
+            info->pos = tf->get_tf(link_name).pos;
+            info->range = 0;
+            info->pub.init(node, topic, rclcpp::QoS(1).reliable());
 
-        _target_obs[height_index(height_type_t::height_slope3)].push_back(map->get_obs_index("area23_wall"));
-        _target_obs[height_index(height_type_t::height_slope3)].push_back(map->get_obs_index("area3_wall"));
-        _target_obs[height_index(height_type_t::height_slope3)].push_back(map->get_obs_index("silo_wall"));
+            _laser_info.push_back(info);
 
-        _target_obs100.push_back(map->get_obs_index("area23_wall"));
-        _target_obs100.push_back(map->get_obs_index("area3_wall"));
-        _target_obs100.push_back(map->get_obs_index("silo_wall"));
-
-        _laser_msg.init(tf);
+            TAGGER(_info, "laser topic, %s, %s", topic.c_str(), link_name.c_str());
+        }
     }
 
-    lcmcl_msgs::msg::Laser sim(pos_t pos, float roll, float pitch)
+    void publish(pos_t pos)
     {
         std::normal_distribution<double> dist(0, 0.001);
 
-        for(size_t i = 0; i < _laser_msg.size; i++)
+        for(auto laser : _laser_info)
         {
-            pos_t local = lc::pos_transformer(pos, _laser_msg._pos[i]);
-            height_type_t ht = this->height_type(local);
-            if(ht == height_type_t::height_0 || ht == height_type_t::height_100 || ht == height_type_t::height_200)
-            {   
-                Map::laser_t hit = _map->sick(local, &_target_obs[height_index(ht)], 30);
-                hit.range += dist(_gn_engine);
-                if(hit.hit_type == -1)
-                {
-                    hit.range = 0;
-                }
-
-                _laser_msg._laser[i] = hit.range;
-            }
-            else if(ht == height_type_t::height_slope1 || ht == height_type_t::height_slope2 || ht == height_type_t::height_slope3)
+            pos_t local = lc::pos_transformer(pos, laser->pos);
+        
+            Map::laser_t hit = _map->calculate_range(local, 30);
+            hit.range += dist(_gn_engine);
+            if(hit.hit_type == -1)
             {
-                trans_t trans;
-                trans.pos = local;
-                trans.z = this->height_real(local) + 0.05;
-                trans.roll = roll;
-                trans.pitch = pitch;
-
-                float base_height;
-                if(ht == height_type_t::height_slope1 || ht == height_type_t::height_0)
-                {
-                    base_height = 0.0;
-                }else if(ht == height_type_t::height_slope2 || ht == height_type_t::height_slope3 || ht == height_type_t::height_100){
-                    base_height = 0.1;
-                }else if(ht == height_type_t::height_200){
-                    base_height = 0.2;
-                }
-                
-                // Map::laser_t hit = _map->sitck(local, &_target_obs[height_index(ht)], 30);
-                Map::laser_t hit = _map->sick_slope(trans, pos.rad, base_height, &_target_obs[height_index(ht)], 30);
-                hit.range += dist(_gn_engine);
-                if(hit.hit_type == -1)
-                {
-                    hit.range = 0;
-                }
-
-                _laser_msg._laser[i] = hit.range;
-            }else{
-                _laser_msg._laser[i] = 0;
+                hit.range = 0;
             }
+
+            laser->range = hit.range;
+
+            sensor_msgs::msg::Range msg;
+            msg.header.stamp = _node->now();
+            msg.header.frame_id = laser->link_name;
+            msg.radiation_type = sensor_msgs::msg::Range::INFRARED;
+            msg.max_range = 30.1;
+            msg.min_range = 0;
+            msg.field_of_view = 0.5 * M_PI / 180;
+            msg.range = hit.range;
+            laser->pub.publish(msg);
         }
-
-        for(size_t i = 0; i < _laser_msg.size100; i++)
-        {
-            pos_t local = lc::pos_transformer(pos, _laser_msg._pos100[i]);
-            height_type_t ht = this->height_type(local);
-            if(ht == height_type_t::height_100)
-            {   
-                Map::laser_t hit = _map->sick(local, &_target_obs100, 30);
-                hit.range += dist(_gn_engine);
-                if(hit.hit_type == -1)
-                {
-                    hit.range = 0;
-                }
-
-                _laser_msg._laser100[i] = hit.range;
-            }else{
-                _laser_msg._laser100[i] = 0;
-            }
-        }
-
-
-        return _laser_msg.get_msg();
     }
 
 };

@@ -1,0 +1,12 @@
+/**:
+  ros__parameters:
+    range_topics:
+      - "/waffle_1d/front_laser_range"
+      - "/waffle_1d/lf_laser_range"
+      - "/waffle_1d/l_laser_range"
+      - "/waffle_1d/lb_laser_range"
+      - "/waffle_1d/rf_laser_range"
+      - "/waffle_1d/r_laser_range"
+      - "/waffle_1d/rb_laser_range"
+      - "/waffle_1d/back_laser_range"
+      

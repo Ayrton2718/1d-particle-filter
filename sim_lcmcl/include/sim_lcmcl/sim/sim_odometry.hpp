@@ -1,17 +1,22 @@
 #pragma once
 
 #include <cmath>
+#include <random>
 
 #include "sim_type.hpp"
 #include <lcmcl_msgs/msg/odometry.hpp>
 #include <lc_map/lc_tf.hpp>
-#include <lc_map/lc_area.hpp>
-#include <tut_tool/tt_timer.hpp>
+
+// 追加するメッセージヘッダ
+#include <nav_msgs/msg/odometry.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 namespace sim
 {
 
-class Odometry : private Area
+class Odometry
 {
 private:
     blackbox::BlackBoxNode* _node;
@@ -19,27 +24,26 @@ private:
     std::random_device          _gn_seed_gen;
     std::default_random_engine  _gn_engine;
 
-    tut_tool::RealTimer _tim;
+    rclcpp::Time _last_tim;
 
     blackbox::Logger    _info;
 
-    pos_t _enc;
-    pos_t _odom;
+    pos_t _enc;   // エンコーダからの積算値（ノイズ含む）
+    pos_t _odom;  // ローカライゼーション結果（積分値）
 
     pos_t _befor_pos;
     pos_t _befor_enc;
 
-    pos_t    _tire_lf;
-    pos_t    _tire_rf;
-    pos_t    _tire_lb;
-    pos_t    _tire_rb;
+    // 追加：Odometry, IMU用のパブリッシャ
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr _odom_pub;
+    rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr _imu_pub;
 
 public:
-    Odometry(void) : Area(), _gn_engine(_gn_seed_gen())
+    Odometry(void) : _gn_engine(_gn_seed_gen())
     {
     }
     
-    void init(blackbox::BlackBoxNode* node, pos_t initial_pos, std::shared_ptr<Tf> tf)
+    void init(blackbox::BlackBoxNode* node, pos_t initial_pos)
     {
         this->_node = node;
 
@@ -48,35 +52,23 @@ public:
 
         this->_enc = {0, 0, 0};
         this->_befor_enc = this->_enc;
-
-        _tire_lf = tf->get_tf("tire_lf").pos;
-        _tire_rf = tf->get_tf("tire_rf").pos;
-        _tire_lb = tf->get_tf("tire_lb").pos;
-        _tire_rb = tf->get_tf("tire_rb").pos;
-
-        _tim.reset();
+        
+        _last_tim = _node->get_clock()->now();
 
         _info.init(node, blackbox::INFO, "encoder");
+
+        // パブリッシャの作成
+        _odom_pub = _node->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
+        _imu_pub = _node->create_publisher<sensor_msgs::msg::Imu>("imu", 10);
     }
 
-    std::tuple<lcmcl_msgs::msg::Odometry, float, float> sim(pos_t true_pos)
+    // シミュレーション＆パブリッシュ（返り値不要）
+    void publish(pos_t true_pos)
     {
-        // sim
         pos_t pos_delta;
         pos_delta.x = true_pos.x - _befor_pos.x;
         pos_delta.y = true_pos.y - _befor_pos.y;
         pos_delta.rad = true_pos.rad - _befor_pos.rad;
-
-        if(is_area(area_t::slope1, true_pos) || is_area(area_t::slope2, true_pos)){
-            pos_delta.x = pos_delta.x * (100.5 / 100);
-            pos_delta.y = pos_delta.y;
-        }else if(is_area(area_t::slope3, true_pos)){
-            pos_delta.x = pos_delta.x;
-            pos_delta.y = pos_delta.y* (100.5 / 100);
-        }else{
-            pos_delta.x = pos_delta.x;
-            pos_delta.y = pos_delta.y;
-        }
 
         double d_e_x = pos_delta.x * cos(true_pos.rad) + pos_delta.y * sin(true_pos.rad);
         double d_e_y = pos_delta.x * -sin(true_pos.rad) + pos_delta.y * cos(true_pos.rad);
@@ -89,7 +81,6 @@ public:
         _enc.y += d_e_y + (dist(_gn_engine) * d_e_y);
         _enc.rad += d_e_rad + (dist_theta(_gn_engine) * d_e_rad) + white_theta(_gn_engine);
 
-        // localization
         pos_t enc_delta;
         enc_delta.x = _enc.x - _befor_enc.x;
         enc_delta.y = _enc.y - _befor_enc.y;
@@ -102,31 +93,72 @@ public:
         _befor_pos = true_pos;
         _befor_enc = _enc;
 
-        float lf_height = this->height_real(lc::pos_transformer(true_pos, _tire_lf));
-        float rf_height = this->height_real(lc::pos_transformer(true_pos, _tire_rf));
-        float lb_height = this->height_real(lc::pos_transformer(true_pos, _tire_lb));
-        float rb_height = this->height_real(lc::pos_transformer(true_pos, _tire_rb));
-        float roll_diff = ((lf_height + lb_height) / 2) - ((rf_height + rb_height) / 2);
-        float roll_length = fabs(_tire_lf.y) + fabs(_tire_rf.y);
-        float pitch_diff = ((lf_height + rf_height) / 2) - ((lb_height + rb_height) / 2);
-        float pitch_length = fabs(_tire_lf.x) + fabs(_tire_lb.x);
-        float roll = atan2f(roll_diff, roll_length);
-        float pitch = atan2f(pitch_diff, pitch_length);
+        auto now_tim = _node->get_clock()->now();
+        auto delta_tim = now_tim - _last_tim;
+        _last_tim = now_tim;
 
-        lcmcl_msgs::msg::Odometry msg;
-        msg.rel_x = _enc.x;
-        msg.rel_y = _enc.y;
-        msg.rel_rad = _enc.rad;
-        msg.rel_vx = enc_delta.x / _tim.getSec();
-        msg.rel_vy = enc_delta.y / _tim.getSec();
-        msg.rel_vrad = enc_delta.rad / _tim.getSec();
-        _tim.reset();
+        double dt = delta_tim.seconds();
+        if (dt == 0) { dt = 0.001; } // ゼロ除算回避
 
-        // TAGGER_INFO(_tagger, "encoder", "(%f, %f, %f), (%f, %f, %f)", odom.abs.x, odom.abs.y, odom.abs.rad, odom.rel.x, odom.rel.y, odom.rel.rad);
+        // ■ nav_msgs::msg::Odometry メッセージの作成
+        nav_msgs::msg::Odometry odom_msg;
+        odom_msg.header.stamp = now_tim;
+        odom_msg.header.frame_id = "odom";
+        odom_msg.child_frame_id  = "base_link";
 
-        return std::make_tuple(msg, roll, pitch);
+        // pose：積分した位置・向き（Quaternionに変換）
+        odom_msg.pose.pose.position.x = _odom.x;
+        odom_msg.pose.pose.position.y = _odom.y;
+        odom_msg.pose.pose.position.z = 0.0;
+        {
+            tf2::Quaternion q;
+            q.setRPY(0, 0, _odom.rad);
+            odom_msg.pose.pose.orientation = tf2::toMsg(q);
+        }
+
+        // twist：エンコーダ差分から速度（※単純な差分計算）
+        odom_msg.twist.twist.linear.x  = enc_delta.x / dt;
+        odom_msg.twist.twist.linear.y  = enc_delta.y / dt;
+        odom_msg.twist.twist.angular.z = enc_delta.rad / dt;
+        odom_msg.twist.twist.angular.x = 0.0;
+        odom_msg.twist.twist.angular.y = 0.0;
+
+        _odom_pub->publish(odom_msg);
+
+        // ■ sensor_msgs::msg::Imu メッセージの作成
+        sensor_msgs::msg::Imu imu_msg;
+        imu_msg.header.stamp = now_tim;
+        imu_msg.header.frame_id = "imu_link";  // 必要に応じて変更
+
+        // orientation：エンコーダ角度（ノイズ付き）からQuaternionに変換
+        {
+            tf2::Quaternion imu_q;
+            imu_q.setRPY(0, 0, _enc.rad);
+            imu_msg.orientation = tf2::toMsg(imu_q);
+        }
+        // angular_velocity：エンコーダからの角速度（z軸のみ） 
+        imu_msg.angular_velocity.z = enc_delta.rad / dt;
+        imu_msg.angular_velocity.x = 0.0;
+        imu_msg.angular_velocity.y = 0.0;
+
+        // linear_acceleration：今回はシミュレーションしていないので0とする
+        imu_msg.linear_acceleration.x = 0.0;
+        imu_msg.linear_acceleration.y = 0.0;
+        imu_msg.linear_acceleration.z = 0.0;
+
+        // 必要に応じ、各種共分散行列を設定（ここでは「不明」を示す -1 をセット）
+        for (int i = 0; i < 9; i++) {
+            imu_msg.orientation_covariance[i]         = 0.0;
+            imu_msg.angular_velocity_covariance[i]    = 0.0;
+            imu_msg.linear_acceleration_covariance[i]   = 0.0;
+        }
+        imu_msg.orientation_covariance[0]         = -1.0;
+        imu_msg.angular_velocity_covariance[0]    = -1.0;
+        imu_msg.linear_acceleration_covariance[0]   = -1.0;
+
+        _imu_pub->publish(imu_msg);
     }
 
 };
 
-}
+} // namespace sim

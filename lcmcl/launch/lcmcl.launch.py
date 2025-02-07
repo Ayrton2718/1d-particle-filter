@@ -14,11 +14,14 @@ package_name = 'lcmcl'
 def generate_launch_description():
     ld = LaunchDescription()
 
+    config_file = os.path.join(
+        get_package_share_directory(package_name), 'config', 'param.yaml')
+
     ld.add_action(Node(
         package=package_name,
         executable="lcmcl",
         namespace="localization",
-        parameters=[]
+        parameters=[config_file]
     ))
 
     return ld

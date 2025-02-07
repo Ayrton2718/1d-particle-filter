@@ -17,17 +17,20 @@ def generate_launch_description():
 
     ld = LaunchDescription()
 
+    config_file = os.path.join(
+        get_package_share_directory('lcmcl'), 'config', 'param.yaml')
+
     ld.add_action(Node(
         package=package_name,
         executable="sim_lcmcl",
         namespace="localization",
-        parameters=[]
+        parameters=[config_file]
     ))
 
     ld.add_action(
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(get_package_share_directory('robot_publisher'), 'launch', 'robot_publisher.launch.py')
+                os.path.join(get_package_share_directory('simulation_launcher'), 'launch', 'robot_state_publisher.launch.py')
             )
         )
     )
@@ -43,7 +46,7 @@ def generate_launch_description():
     ld.add_action(
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(get_package_share_directory('lcmcl'), 'launch', 'lcmcl.launch.py')
+                os.path.join(get_package_share_directory('lc_map'), 'launch', 'map_publisher.launch.py')
             )
         )
     )

@@ -20,6 +20,7 @@
     <depend>blackbox</depend>
     <depend>control_panel_msgs</depend>
     <depend>tut_tool</depend>
+    <depend>nav2_map_server</depend>
 
     <export>
         <build_type>ament_cmake</build_type>

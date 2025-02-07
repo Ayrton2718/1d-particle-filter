@@ -21,7 +21,7 @@
 namespace mcl
 {
 
-class EKF : public KfBase, Area
+class EKF : public KfBase
 {
 private:
     blackbox::BlackBoxNode* _node;
@@ -106,7 +106,7 @@ private:
     }
 
 public:
-    EKF(blackbox::BlackBoxNode* node, OdomSubscriber* os, pos_t initial_pos) : Area(), _delta(os)
+    EKF(blackbox::BlackBoxNode* node, OdomSubscriber* os, pos_t initial_pos) :  _delta(os)
     {
         this->_node = node;
 
@@ -215,17 +215,10 @@ public:
 
         Eigen::Matrix<float, 3, 3> Q;
         pos_t pre_pos = {pre_x(0), pre_x(1), pre_x(2)};
-        if(is_area(lc::area_t::storage, pre_pos) || is_area(lc::area_t::slope3, pre_pos)){
-            Q = _QStorage;
-            Q(0, 0) += fabs(abs_vel.x * _param_activeQxxStorage.get());
-            Q(1, 1) += fabs(abs_vel.y * _param_activeQxxStorage.get());
-            Q(2, 2) += fabs(abs_vel.rad * _param_activeQzzStorage.get());
-        }else{
-            Q = _Q;
-            Q(0, 0) += fabs(abs_vel.x * _param_activeQxx.get());
-            Q(1, 1) += fabs(abs_vel.y * _param_activeQxx.get());
-            Q(2, 2) += fabs(abs_vel.rad * _param_activeQzz.get());
-        }
+        Q = _Q;
+        Q(0, 0) += fabs(abs_vel.x * _param_activeQxx.get());
+        Q(1, 1) += fabs(abs_vel.y * _param_activeQxx.get());
+        Q(2, 2) += fabs(abs_vel.rad * _param_activeQzz.get());
 
         Eigen::Matrix<float, 3, 3> pre_P;
         pre_P = A * _P * A.transpose() + Q;
