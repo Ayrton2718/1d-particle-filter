@@ -73,44 +73,6 @@ namespace lc
             return (i >= 0 && i < _size_x && j >= 0 && j < _size_y);
         }
 
-        // マクロの代替としてインライン関数で変換処理を実装
-
-        // マップインデックス (i) からワールド座標 x を求める
-        double mapWxGX(int i) const
-        {
-            return _origin_x + (i - _size_x / 2) * _scale;
-        }
-
-        // マップインデックス (j) からワールド座標 y を求める
-        double mapWyGY(int j) const
-        {
-            return _origin_y + (j - _size_y / 2) * _scale;
-        }
-
-        // ワールド座標 x からマップインデックスを求める
-        int mapGxWX(double x) const
-        {
-            return static_cast<int>(std::floor((x - _origin_x) / _scale + 0.5)) + _size_x / 2;
-        }
-
-        // ワールド座標 y からマップインデックスを求める
-        int mapGyWY(double y) const
-        {
-            return static_cast<int>(std::floor((y - _origin_y) / _scale + 0.5)) + _size_y / 2;
-        }
-
-        // 指定したマップインデックスが有効か判定
-        bool mapValid(int i, int j) const
-        {
-            return (i >= 0 && i < _size_x && j >= 0 && j < _size_y);
-        }
-
-        // マップインデックス (i, j) に対するセル配列上のインデックスを返す
-        int mapIndex(int i, int j) const
-        {
-            return i + j * _size_x;
-        }
-
     public:
         // コンストラクタ (rclcpp::Node* を用いた初期化)
         explicit Map(blackbox::BlackBoxNode* node)
@@ -137,93 +99,128 @@ namespace lc
 
         laser_t calculate_range(pos_t pos, float max_range)
         {
-            int x0, x1, y0, y1;
-            int x, y;
-            int x_step, y_step;
-            bool steep;
-            int tmp;
-            int delta_x, delta_y, error, delta_err;
+            // ※以下のローカル変数展開により、メンバ変数への間接参照を減らす
+            const double ox = _origin_x;
+            const double oy = _origin_y;
+            const double s = _scale;
+            const int grid_x = _size_x;
+            const int grid_y = _size_y;
+            const cell_t *cells_ptr = _cells.data();
 
-            x0 = mapGxWX(pos.x);
-            y0 = mapGyWY(pos.y);
-            x1 = mapGxWX(pos.x + max_range * std::cos(pos.rad));
-            y1 = mapGyWY(pos.y + max_range * std::sin(pos.rad));
+            // ワールド座標 → マップインデックス（inline展開）
+            auto worldToMap = [=](double coord, double origin, int grid_size) -> int
+            {
+                return static_cast<int>(std::floor((coord - origin) / s + 0.5)) + grid_size / 2;
+            };
 
-            steep = (std::abs(y1 - y0) > std::abs(x1 - x0));
+            // 初期位置
+            int x0 = worldToMap(pos.x, ox, grid_x);
+            int y0 = worldToMap(pos.y, oy, grid_y);
+            // 終端位置（最大レンジ方向）
+            int x1 = worldToMap(pos.x + max_range * std::cos(pos.rad), ox, grid_x);
+            int y1 = worldToMap(pos.y + max_range * std::sin(pos.rad), oy, grid_y);
 
+            // steep判定
+            bool steep = (std::abs(y1 - y0) > std::abs(x1 - x0));
+            int x0_local = x0, y0_local = y0, x1_local = x1, y1_local = y1;
             if (steep)
             {
-                tmp = x0;
-                x0 = y0;
-                y0 = tmp;
-                tmp = x1;
-                x1 = y1;
-                y1 = tmp;
+                std::swap(x0_local, y0_local);
+                std::swap(x1_local, y1_local);
             }
 
-            delta_x = std::abs(x1 - x0);
-            delta_y = std::abs(y1 - y0);
-            error = 0;
-            delta_err = delta_y;
+            const int dx = std::abs(x1_local - x0_local);
+            const int dy = std::abs(y1_local - y0_local);
+            int error = 0;
+            const int delta_err = dy;
 
-            x = x0;
-            y = y0;
-            x_step = (x0 < x1) ? 1 : -1;
-            y_step = (y0 < y1) ? 1 : -1;
+            int x = x0_local;
+            int y = y0_local;
+            const int x_step = (x0_local < x1_local) ? 1 : -1;
+            const int y_step = (y0_local < y1_local) ? 1 : -1;
 
+            // ラムダ: steep/non-steepでセルのチェック（インデックス計算を展開）
+            auto cell_is_obstacle = [&](int a, int b) -> bool
+            {
+                // steep時は a: y, b: x、それ以外は a: x, b: y としてチェック
+                if (!steep)
+                {
+                    if (a < 0 || a >= grid_x || b < 0 || b >= grid_y)
+                        return true;
+                    return (cells_ptr[a + b * grid_x].occ_state > -1);
+                }
+                else
+                {
+                    if (a < 0 || a >= grid_x || b < 0 || b >= grid_y)
+                        return true;
+                    return (cells_ptr[a + b * grid_x].occ_state > -1);
+                }
+            };
+
+            // 最初のセルのチェック
             if (steep)
             {
-                if (!mapValid(y, x) || _cells[mapIndex(y, x)].occ_state > -1)
+                if (cell_is_obstacle(y, x))
                 {
                     laser_t hit;
                     hit.hit_type = 1;
-                    hit.range = std::sqrt((x - x0) * (x - x0) + (y - y0) * (y - y0)) * _scale;
+                    int dx_local = x - x0_local;
+                    int dy_local = y - y0_local;
+                    hit.range = std::sqrt(dx_local * dx_local + dy_local * dy_local) * s;
                     return hit;
                 }
             }
             else
             {
-                if (!mapValid(x, y) || _cells[mapIndex(x, y)].occ_state > -1)
+                if (cell_is_obstacle(x, y))
                 {
                     laser_t hit;
                     hit.hit_type = 1;
-                    hit.range = std::sqrt((x - x0) * (x - x0) + (y - y0) * (y - y0)) * _scale;
+                    int dx_local = x - x0_local;
+                    int dy_local = y - y0_local;
+                    hit.range = std::sqrt(dx_local * dx_local + dy_local * dy_local) * s;
                     return hit;
                 }
             }
 
-            while (x != (x1 + x_step))
+            // Bresenhamループ
+            while (x != (x1_local + x_step))
             {
                 x += x_step;
                 error += delta_err;
-                if (2 * error >= delta_x)
+                if (2 * error >= dx)
                 {
                     y += y_step;
-                    error -= delta_x;
+                    error -= dx;
                 }
 
                 if (steep)
                 {
-                    if (!mapValid(y, x) || _cells[mapIndex(y, x)].occ_state > -1)
+                    if (cell_is_obstacle(y, x))
                     {
                         laser_t hit;
                         hit.hit_type = 1;
-                        hit.range = std::sqrt((x - x0) * (x - x0) + (y - y0) * (y - y0)) * _scale;
+                        int dx_local = x - x0_local;
+                        int dy_local = y - y0_local;
+                        hit.range = std::sqrt(dx_local * dx_local + dy_local * dy_local) * s;
                         return hit;
                     }
                 }
                 else
                 {
-                    if (!mapValid(x, y) || _cells[mapIndex(x, y)].occ_state > -1)
+                    if (cell_is_obstacle(x, y))
                     {
                         laser_t hit;
                         hit.hit_type = 1;
-                        hit.range = std::sqrt((x - x0) * (x - x0) + (y - y0) * (y - y0)) * _scale;
+                        int dx_local = x - x0_local;
+                        int dy_local = y - y0_local;
+                        hit.range = std::sqrt(dx_local * dx_local + dy_local * dy_local) * s;
                         return hit;
                     }
                 }
             }
 
+            // 障害物がなかった場合
             laser_t hit;
             hit.hit_type = -1;
             hit.range = max_range;
