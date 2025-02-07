@@ -16,6 +16,7 @@
 namespace lc
 {
 
+static void skipComments(std::istream &stream);
 
 void Map::import_yaml(void)
 {
@@ -29,16 +30,16 @@ void Map::import_yaml(void)
     std::string line;
     while (std::getline(file, line)) {
         if (line.find("resolution:") == 0) {
-            resolution = std::stod(line.substr(line.find_first_of(':') + 1));
+            _scale = std::stod(line.substr(line.find_first_of(':') + 1));
         } else if (line.find("origin:") == 0) {
             auto start = line.find('[') + 1;
             auto end = line.find(']');
             auto values = line.substr(start, end - start);
-            sscanf(values.c_str(), "%lf, %lf, %lf", &origin_x, &origin_y, &origin_theta);
+            sscanf(values.c_str(), "%lf, %lf, %lf", &_origin_x, &_origin_y, &_origin_theta);
         } else if (line.find("occupied_thresh:") == 0) {
-            occupied_thresh = std::stod(line.substr(line.find_first_of(':') + 1));
+            _occupied_thresh = std::stod(line.substr(line.find_first_of(':') + 1));
         } else if (line.find("free_thresh:") == 0) {
-            free_thresh = std::stod(line.substr(line.find_first_of(':') + 1));
+            _free_thresh = std::stod(line.substr(line.find_first_of(':') + 1));
         }
     }
 }
@@ -58,10 +59,19 @@ void Map::import_pgm(void)
         throw std::runtime_error("Incorrect image format; must be PGM/binary");
     }
 
-    int width, height, depth;
-    file.ignore(1024, '\n');
-    file >> width >> height >> depth;
+    skipComments(file);
+    int width, height;
+    file >> width >> height;
+    skipComments(file);
+
+    int depth;
+    file >> depth;
     file.ignore(1);
+
+    _size_x = width;
+    _size_y = height;
+    _origin_x = _origin_x + (_size_x / 2) * _scale;
+    _origin_y = _origin_y + (_size_y / 2) * _scale;
 
     allocate(width, height);
 
@@ -72,16 +82,33 @@ void Map::import_pgm(void)
             double occ = static_cast<double>(ch) / depth;
 
             if (isValid(i, j)) {
-                if (occ >= occupied_thresh) {
-                    getCell(i, j).occ_state = 1;
-                } else if (occ <= free_thresh) {
+                if (occ >= _occupied_thresh) {
                     getCell(i, j).occ_state = -1;
+                } else if (occ <= _free_thresh) {
+                    getCell(i, j).occ_state = 1;
                 } else {
                     getCell(i, j).occ_state = 0;
                 }
             }
         }
     }
+
+    TAGGER(_info.get(), "Map loaded: %d x %d", width, height);
 }
+
+// Helper function to skip comment lines and whitespace
+static void skipComments(std::istream &stream) {
+    // Skip any whitespace or comment lines (that start with '#')
+    while (std::isspace(stream.peek()) || stream.peek() == '#') {
+        if (stream.peek() == '#') {
+            // Skip the entire comment line
+            stream.ignore(1024, '\n');
+        } else {
+            // Skip a single whitespace character
+            stream.get();
+        }
+    }
+}
+
 
 }

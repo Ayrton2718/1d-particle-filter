@@ -16,13 +16,11 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'yaml_filename': map_yaml_file,
-            # autostart がサポートされない場合はここには設定しなくてもよい
         }],
     )
 
-    # ノード起動後、2秒後に configure 遷移を実行
     configure_map_server = TimerAction(
-        period=0.2,
+        period=1.0,
         actions=[
             ExecuteProcess(
                 cmd=['ros2', 'lifecycle', 'set', '/map_server', 'configure'],
@@ -31,9 +29,8 @@ def generate_launch_description():
         ]
     )
 
-    # さらに2秒後に activate 遷移を実行
     activate_map_server = TimerAction(
-        period=1.0,
+        period=2.0,
         actions=[
             ExecuteProcess(
                 cmd=['ros2', 'lifecycle', 'set', '/map_server', 'activate'],

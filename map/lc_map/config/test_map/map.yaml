@@ -1,0 +1,6 @@
+image: map.pgm         # Path to the PGM image file
+resolution: 0.1                # Resolution [meters/pixel]
+origin: [-25.0, -25.0, 0.0]       # The map's origin [x, y, theta]
+negate: 0                   # Do not invert pixel values (0 = false)
+occupied_thresh: 0.65        # Pixels with normalized values above this are considered occupied
+free_thresh: 0.196           # Pixels with normalized values below this are considered free

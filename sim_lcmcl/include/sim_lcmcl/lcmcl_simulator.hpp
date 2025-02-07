@@ -7,7 +7,7 @@
 #include <random>
 
 #include <sensor_msgs/msg/laser_scan.hpp>
-#include <sensor_msgs/msg/joy.hpp>
+#include <geometry_msgs/msg/twist.hpp>
 #include <sensor_msgs/msg/range.hpp>
 #include <lcmcl_msgs/msg/localization.hpp>
 #include <lcmcl_msgs/msg/laser.hpp>
@@ -38,7 +38,7 @@ private:
 
     rclcpp::TimerBase::SharedPtr                                    _odom_pub_tim;
 
-    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr          _joy_sub;
+    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr          _joy_sub;
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr _true_odom_pub;
 
     const uint32_t  _odom_interval = 10;
@@ -68,7 +68,7 @@ public:
         _sick.init(this,  _map, _tf);
 
         this->_true_odom_pub = this->create_publisher<nav_msgs::msg::Odometry>("true_odom", 10);
-        this->_joy_sub = this->create_subscription<sensor_msgs::msg::Joy>("/joy", 10, std::bind(&LcmclSimulator::joy_subscriber, this, std::placeholders::_1));
+        this->_joy_sub = this->create_subscription<geometry_msgs::msg::Twist>("/cmd_vel", 10, std::bind(&LcmclSimulator::joy_subscriber, this, std::placeholders::_1));
 
         this->_cmd_pos.x = 0;
         this->_cmd_pos.y = 0;
@@ -77,18 +77,21 @@ public:
         this->_odom_pub_tim = this->create_wall_timer(std::chrono::milliseconds(this->_odom_interval), std::bind(&LcmclSimulator::odom_est_publisher, this));
     }
 
-    void joy_subscriber(const sensor_msgs::msg::Joy::SharedPtr msg)
+    void joy_subscriber(const geometry_msgs::msg::Twist::SharedPtr msg)
     {
+        this->_cmd_pos.x = msg->linear.x * cos(this->_true_pos.rad) - msg->linear.y * sin(this->_true_pos.rad);
+        this->_cmd_pos.y = msg->linear.y * cos(this->_true_pos.rad) + msg->linear.x * sin(this->_true_pos.rad);
+        this->_cmd_pos.rad = msg->angular.z;
 #ifdef MY_JOY
-        this->_cmd_pos.rad = (msg->axes[4] - msg->axes[5]);
-        if(this->_cmd_pos.rad != 0)
-        {
-            this->_cmd_pos.x = msg->axes[3];
-            this->_cmd_pos.y = msg->axes[2];
-        }else{
-            this->_cmd_pos.x = msg->axes[3] * 1.2;
-            this->_cmd_pos.y = msg->axes[2] * 1.2;
-        }
+        // this->_cmd_pos.rad = (msg->axes[4] - msg->axes[5]);
+        // if(this->_cmd_pos.rad != 0)
+        // {
+        //     this->_cmd_pos.x = msg->axes[3];
+        //     this->_cmd_pos.y = msg->axes[2];
+        // }else{
+        //     this->_cmd_pos.x = msg->axes[3] * 1.2;
+        //     this->_cmd_pos.y = msg->axes[2] * 1.2;
+        // }
 #else
         this->_cmd_pos.rad = (msg->axes[5] - msg->axes[2]);
         if(this->_cmd_pos.rad != 0)

@@ -42,13 +42,13 @@ private:
     rclcpp::TimerBase::SharedPtr                                        _map_pub_tim;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr  _map_pub;
 
-    double origin_x, origin_y, origin_theta; // Map origin
-    double resolution; // Map resolution (meters per cell)
-    int size_x, size_y; // Map dimensions (number of cells)
-    std::vector<cell_t> cells; // Grid data
-    double max_occ_dist; // Maximum distance for obstacle consideration
-    double occupied_thresh; // Threshold for occupied cells
-    double free_thresh; // Threshold for free cells
+    double _origin_x, _origin_y, _origin_theta; // Map origin
+    double _scale; // Map _resolution (meters per cell)
+    int _size_x, _size_y; // Map dimensions (number of cells)
+    std::vector<cell_t> _cells; // Grid data
+    double _max_occ_dist; // Maximum distance for obstacle consideration
+    double _occupied_thresh; // Threshold for occupied _cells
+    double _free_thresh; // Threshold for free cells
 
 private:
     void import_yaml(void);
@@ -70,15 +70,15 @@ public:
         _error->init(node, blackbox::ERR, "lc_map");
         _info->init(node, blackbox::INFO, "lc_map");
 
-        this->origin_x = 0;
-        this->origin_y = 0;
-        this->origin_theta = 0;
-        this->resolution = 0;
-        this->size_x = 0;
-        this->size_y = 0;
-        this->max_occ_dist = 0;
-        this->occupied_thresh = 0.65;
-        this->free_thresh = 0.196;
+        this->_origin_x = 0;
+        this->_origin_y = 0;
+        this->_origin_theta = 0;
+        this->_scale = 0;
+        this->_size_x = 0;
+        this->_size_y = 0;
+        this->_max_occ_dist = 0;
+        this->_occupied_thresh = 0.65;
+        this->_free_thresh = 0.196;
         
         this->import_yaml();
         this->import_pgm();
@@ -92,15 +92,15 @@ public:
     {
         this->_node = node;
 
-        this->origin_x = 0;
-        this->origin_y = 0;
-        this->origin_theta = 0;
-        this->resolution = 0;
-        this->size_x = 0;
-        this->size_y = 0;
-        this->max_occ_dist = 0;
-        this->occupied_thresh = 0.65;
-        this->free_thresh = 0.196;
+        this->_origin_x = 0;
+        this->_origin_y = 0;
+        this->_origin_theta = 0;
+        this->_scale = 0;
+        this->_size_x = 0;
+        this->_size_y = 0;
+        this->_max_occ_dist = 0;
+        this->_occupied_thresh = 0.65;
+        this->_free_thresh = 0.196;
 
         this->import_yaml();
         this->import_pgm();
@@ -117,52 +117,121 @@ public:
         // this->_map_pub_tim = this->_node->create_wall_timer(std::chrono::milliseconds(100), std::bind(&Map::map_publisher, this), this->m_cb_grp1);
     }
 
+// Convert from map index to world coords
+#define MAP_WXGX(ptr, i) (ptr->_origin_x + ((i) - ptr->_size_x / 2) * ptr->_scale)
+#define MAP_WYGY(ptr, j) (ptr->_origin_y + ((j) - ptr->_size_y / 2) * ptr->_scale)
+
+// Convert from world coords to map coords
+#define MAP_GXWX(ptr, x) (floor((x - ptr->_origin_x) / ptr->_scale + 0.5) + ptr->_size_x / 2)
+#define MAP_GYWY(ptr, y) (floor((y - ptr->_origin_y) / ptr->_scale + 0.5) + ptr->_size_y / 2)
+// Test to see if the given map coords lie within the absolute map bounds.
+#define MAP_VALID(ptr, i, j) ((i >= 0) && (i < ptr->_size_x) && (j >= 0) && (j < ptr->_size_y))
+
+// Compute the cell index for the given map coords.
+#define MAP_INDEX(ptr, i, j) ((i) + (j) * ptr->_size_x)
+
     laser_t calculate_range(pos_t pos, float max_range)
     {
-        int x0 = worldToMapX(pos.x);
-        int y0 = worldToMapY(pos.y);
-        int x1 = worldToMapX(pos.x + max_range * cos(pos.rad));
-        int y1 = worldToMapY(pos.y + max_range * sin(pos.rad));
+        // Bresenham raytracing
+        int x0,x1,y0,y1;
+        int x,y;
+        int xstep, ystep;
+        char steep;
+        int tmp;
+        int deltax, deltay, error, deltaerr;
 
-        bool steep = std::abs(y1 - y0) > std::abs(x1 - x0);
-        if (steep) {
-            std::swap(x0, y0);
-            std::swap(x1, y1);
+        x0 = MAP_GXWX(this,pos.x);
+        y0 = MAP_GYWY(this,pos.y);
+        
+        x1 = MAP_GXWX(this,pos.x + max_range * cos(pos.rad));
+        y1 = MAP_GYWY(this,pos.y + max_range * sin(pos.rad));
+
+        if(abs(y1-y0) > abs(x1-x0))
+            steep = 1;
+        else
+            steep = 0;
+
+        if(steep)
+        {
+            tmp = x0;
+            x0 = y0;
+            y0 = tmp;
+
+            tmp = x1;
+            x1 = y1;
+            y1 = tmp;
         }
 
-        if (x0 > x1) {
-            std::swap(x0, x1);
-            std::swap(y0, y1);
+        deltax = abs(x1-x0);
+        deltay = abs(y1-y0);
+        error = 0;
+        deltaerr = deltay;
+
+        x = x0;
+        y = y0;
+
+        if(x0 < x1)
+            xstep = 1;
+        else
+            xstep = -1;
+        if(y0 < y1)
+            ystep = 1;
+        else
+            ystep = -1;
+
+        if(steep)
+        {
+            if(!MAP_VALID(this,y,x) || this->_cells[MAP_INDEX(this,y,x)].occ_state > -1){
+                laser_t hit;
+                hit.hit_type = 1;
+                hit.range = sqrt((x-x0)*(x-x0) + (y-y0)*(y-y0)) * this->_scale;
+                return hit;
+            }
+        }
+        else
+        {
+            if(!MAP_VALID(this,x,y) || this->_cells[MAP_INDEX(this,x,y)].occ_state > -1){
+                laser_t hit;
+                hit.hit_type = 1;
+                hit.range = sqrt((x-x0)*(x-x0) + (y-y0)*(y-y0)) * this->_scale;
+                return hit;
+            }
         }
 
-        int deltax = x1 - x0;
-        int deltay = std::abs(y1 - y0);
-        int error = 0;
-        int ystep = (y0 < y1) ? 1 : -1;
-        int y = y0;
-
-        for (int x = x0; x <= x1; ++x) {
-            int cx = steep ? y : x;
-            int cy = steep ? x : y;
-
-            if (!isValid(cx, cy) || getCell(cx, cy).occ_state > -1) {
-                laser_t laser;
-                laser.hit_type = 1;
-                laser.range = std::sqrt((x - x0) * (x - x0) + (y - y0) * (y - y0)) * resolution;
-                return laser;
+        while(x != (x1 + xstep * 1))
+        {
+            x += xstep;
+            error += deltaerr;
+            if(2*error >= deltax)
+            {
+            y += ystep;
+            error -= deltax;
             }
 
-            error += deltay;
-            if (2 * error >= deltax) {
-                y += ystep;
-                error -= deltax;
+            if(steep)
+            {
+                if(!MAP_VALID(this,y,x) || this->_cells[MAP_INDEX(this,y,x)].occ_state > -1){
+                    laser_t hit;
+                    hit.hit_type = 1;
+                    hit.range = sqrt((x-x0)*(x-x0) + (y-y0)*(y-y0)) * this->_scale;
+                    return hit;
+                }
+            }
+            else
+            {
+                if(!MAP_VALID(this,x,y) || this->_cells[MAP_INDEX(this,x,y)].occ_state > -1){
+                    laser_t hit;
+                    hit.hit_type = 1;
+                    hit.range = sqrt((x-x0)*(x-x0) + (y-y0)*(y-y0)) * this->_scale;
+                    return hit;
+                }
             }
         }
 
-        laser_t laser;
-        laser.hit_type = -1;
-        laser.range = max_range;
-        return laser;
+        laser_t hit;
+        hit.hit_type = -1;
+        hit.range = max_range;
+        return hit;
     }
 
     // void map_publisher(void)
@@ -267,32 +336,32 @@ public:
 
 private:
     void allocate(int width, int height) {
-        size_x = width;
-        size_y = height;
-        cells.resize(width * height);
+        _size_x = width;
+        _size_y = height;
+        _cells.resize(width * height);
     }
 
     cell_t& getCell(int i, int j) {
         if (!isValid(i, j)) {
             throw std::out_of_range("Invalid cell coordinates");
         }
-        return cells[i + j * size_x];
+        return _cells[i + j * _size_x];
     }
 
     bool isValid(int i, int j) const {
-        return (i >= 0 && i < size_x && j >= 0 && j < size_y);
+        return (i >= 0 && i < _size_x && j >= 0 && j < _size_y);
     }
 
     int index(int i, int j) const {
-        return i + j * size_x;
+        return i + j * _size_x;
     }
 
     int worldToMapX(double x) const {
-        return static_cast<int>(std::floor((x - origin_x) / resolution + 0.5) + size_x / 2);
+        return static_cast<int>(std::floor((x - _origin_x) / _scale + 0.5) + _size_x / 2);
     }
 
     int worldToMapY(double y) const {
-        return static_cast<int>(std::floor((y - origin_y) / resolution + 0.5) + size_y / 2);
+        return static_cast<int>(std::floor((y - _origin_y) / _scale + 0.5) + _size_y / 2);
     }
 };
 
