@@ -21,7 +21,6 @@
   <depend>tut_tool</depend>
   <depend>blackbox</depend>
   <depend>lc_map</depend>
-  <depend>lcmcl_msgs</depend>
   <depend>lcmcl_topics</depend>
   <exec_depend>rosbag_rviz_panel</exec_depend>
 

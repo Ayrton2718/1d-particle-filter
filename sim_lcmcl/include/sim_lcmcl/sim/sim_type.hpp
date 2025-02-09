@@ -5,9 +5,6 @@
 #include <lc_map/lc_map.hpp>
 #include <blackbox/blackbox.hpp>
 
-#include <lcmcl_msgs/msg/localization.hpp>
-#include <lcmcl_msgs/msg/odometry.hpp>
-
 using namespace lc;
 
 namespace sim

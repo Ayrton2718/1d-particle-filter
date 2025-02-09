@@ -6,7 +6,6 @@
 #include <float.h>
 
 #include <std_msgs/msg/float32_multi_array.hpp>
-#include <lcmcl_msgs/msg/odometry.hpp>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
 
@@ -28,7 +27,6 @@ private:
     pos_t   _x_noise;
 
     uint32_t _cut_counter = 0;
-    // rclcpp::Subscription<lcmcl_msgs::msg::Odometry>::SharedPtr _sub;
 
     uint8_t is_enable = 1;
     

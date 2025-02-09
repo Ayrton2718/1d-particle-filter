@@ -6,7 +6,6 @@
 #include <float.h>
 
 #include <std_msgs/msg/float32_multi_array.hpp>
-#include <lcmcl_msgs/msg/odometry.hpp>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
 #include <visualization_msgs/msg/marker.hpp>

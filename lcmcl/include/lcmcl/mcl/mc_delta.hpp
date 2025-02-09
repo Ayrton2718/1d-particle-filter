@@ -4,10 +4,10 @@
 #include <vector>
 #include <random>
 
-#include <lcmcl_msgs/msg/odometry.hpp>
-
 #include "mc_type.hpp"
 #include <blackbox/blackbox.hpp>
+
+#include "nav_msgs/msg/odometry.hpp"
 
 namespace mcl
 {
@@ -33,7 +33,7 @@ public:
             {
                 rclcpp::Duration dur = stamp_tim - _befor_tim;
                 
-                if(is_reset){_befor_tim = stamp_tim;}
+                if(is_reset){ _befor_tim = stamp_tim; }
 
                 pos_t vel = _os->vel();
                 pos_t delta;
@@ -47,7 +47,7 @@ public:
                 rclcpp::Time now = _os->now();
                 rclcpp::Duration dur = now - _befor_tim;
                 
-                if(is_reset){_befor_tim = now;}
+                if(is_reset){ _befor_tim = now; }
 
                 pos_t vel = _os->vel();
                 pos_t delta;
@@ -57,7 +57,6 @@ public:
                 return delta;
             }
         }
-
 
     private:
         OdomSubscriber* _os;
@@ -75,16 +74,18 @@ private:
     }
 
 public:
-    OdomSubscriber(blackbox::BlackBoxNode* node, std::function<void(rclcpp::Time)> cb){
+    OdomSubscriber(blackbox::BlackBoxNode* node, std::function<void(rclcpp::Time)> cb)
+    {
         _node = node;
-
         _vel = {0, 0, 0};
 
-        _sub.init(node, "sensor_odometry", rclcpp::QoS(1).reliable(), [this, cb](lcmcl_msgs::msg::Odometry::SharedPtr msg){
+        _sub.init(node, "/waffle_1d/odom", rclcpp::QoS(1).reliable(),
+            [this, cb](nav_msgs::msg::Odometry::SharedPtr msg)
+            {
                 _vel = {
-                    msg->rel_vx,
-                    msg->rel_vy,
-                    msg->rel_vrad
+                    msg->twist.twist.linear.x,
+                    msg->twist.twist.linear.y,
+                    msg->twist.twist.angular.z
                 };
 
                 cb(msg->header.stamp);
@@ -93,13 +94,12 @@ public:
 
 private:
     blackbox::BlackBoxNode* _node;
-    
     pos_t _vel = {0, 0, 0};
     rclcpp::Time _befor_tim;
 
-    blackbox::SubRecord<lcmcl_msgs::msg::Odometry, true> _sub;
+    blackbox::SubRecord<nav_msgs::msg::Odometry, true> _sub;
 };
 
-using Delta=OdomSubscriber::Delta;
+using Delta = OdomSubscriber::Delta;
 
-}
+}  // namespace mcl

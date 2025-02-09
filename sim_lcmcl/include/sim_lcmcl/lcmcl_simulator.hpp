@@ -9,8 +9,6 @@
 #include <sensor_msgs/msg/laser_scan.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <sensor_msgs/msg/range.hpp>
-#include <lcmcl_msgs/msg/localization.hpp>
-#include <lcmcl_msgs/msg/laser.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/static_transform_broadcaster.h>
@@ -35,6 +33,8 @@ private:
     
     std::shared_ptr<lc::Map>     _map;
     std::shared_ptr<lc::Tf>     _tf;
+
+    std::shared_ptr<tf2_ros::TransformBroadcaster>    _tf_pub;
 
     rclcpp::TimerBase::SharedPtr                                    _odom_pub_tim;
 
@@ -62,13 +62,15 @@ public:
         this->_tf = std::make_shared<lc::Tf>(this);
         this->_true_pos = _tf->get_initial_pos();
         
+        this->_tf_pub = std::make_shared<tf2_ros::TransformBroadcaster>(this);
+
         this->_map = std::make_shared<lc::Map>(this);
 
         _odometry.init(this, _tf->get_initial_pos());
         _sick.init(this,  _map, _tf);
 
-        this->_true_odom_pub = this->create_publisher<nav_msgs::msg::Odometry>("true_odom", 10);
-        this->_joy_sub = this->create_subscription<geometry_msgs::msg::Twist>("/cmd_vel", 10, std::bind(&LcmclSimulator::joy_subscriber, this, std::placeholders::_1));
+        this->_true_odom_pub = this->create_publisher<nav_msgs::msg::Odometry>("/waffle_1d/true_position", 10);
+        this->_joy_sub = this->create_subscription<geometry_msgs::msg::Twist>("/waffle_1d/cmd_vel", 10, std::bind(&LcmclSimulator::joy_subscriber, this, std::placeholders::_1));
 
         this->_cmd_pos.x = 0;
         this->_cmd_pos.y = 0;
@@ -116,22 +118,29 @@ public:
         this->_true_pos.rad += d_rad;
 
         this->_odometry.publish(_true_pos);
-
         this->_sick.publish(_true_pos);
 
         auto now = this->get_clock()->now();
         nav_msgs::msg::Odometry true_odom;
+        tf2::Quaternion q;
         true_odom.header.stamp = now;
-        true_odom.header.frame_id = "odom";
-        true_odom.child_frame_id  = "base_link";
+        true_odom.header.frame_id = "map";
+        true_odom.child_frame_id  = "base_footprint";
         true_odom.pose.pose.position.x = this->_true_pos.x;
         true_odom.pose.pose.position.y = this->_true_pos.y;
         true_odom.pose.pose.position.z = 0.0;
-        tf2::Quaternion q;
-        q.setRPY(0, 0, this->_true_pos.rad);
+        q.setRPY(0, 0, _true_pos.rad);
         true_odom.pose.pose.orientation = tf2::toMsg(q);
         _true_odom_pub->publish(true_odom);
 
-        this->_tf->set_true(_true_pos, this->get_clock()->now());
+        geometry_msgs::msg::TransformStamped t;
+        t.header.stamp = now;
+        t.header.frame_id = "map";
+        t.child_frame_id = "base_footprint";
+        t.transform.translation.x = _true_pos.x;
+        t.transform.translation.y = _true_pos.y;
+        t.transform.translation.z = 0.0;
+        t.transform.rotation = tf2::toMsg(q);
+        this->_tf_pub->sendTransform(t);
     }
 };

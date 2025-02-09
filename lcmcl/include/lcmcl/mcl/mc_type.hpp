@@ -6,9 +6,6 @@
 #include <lc_map/lc_tf.hpp>
 #include <blackbox/blackbox.hpp>
 
-#include <lcmcl_msgs/msg/localization.hpp>
-#include <lcmcl_msgs/msg/odometry.hpp>
-
 #define MCLTYPE_N   (64)
 
 using namespace lc;

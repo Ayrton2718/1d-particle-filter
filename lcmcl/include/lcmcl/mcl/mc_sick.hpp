@@ -4,7 +4,6 @@
 #include <vector>
 #include <random>
 
-#include <lcmcl_msgs/msg/laser.hpp>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
 #include <sensor_msgs/msg/range.hpp>

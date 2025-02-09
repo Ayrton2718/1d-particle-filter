@@ -5,8 +5,6 @@
 
 #include "sim_type.hpp"
 
-#include <lcmcl_msgs/msg/laser.hpp>
-
 #include <lc_map/lc_tf.hpp>
 
 namespace sim

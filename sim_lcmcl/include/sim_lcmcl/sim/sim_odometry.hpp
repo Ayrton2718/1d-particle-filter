@@ -4,7 +4,6 @@
 #include <random>
 
 #include "sim_type.hpp"
-#include <lcmcl_msgs/msg/odometry.hpp>
 #include <lc_map/lc_tf.hpp>
 
 // 追加するメッセージヘッダ
@@ -58,8 +57,8 @@ public:
         _info.init(node, blackbox::INFO, "encoder");
 
         // パブリッシャの作成
-        _odom_pub = _node->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
-        _imu_pub = _node->create_publisher<sensor_msgs::msg::Imu>("imu", 10);
+        _odom_pub = _node->create_publisher<nav_msgs::msg::Odometry>("/waffle_1d/odom", 10);
+        _imu_pub = _node->create_publisher<sensor_msgs::msg::Imu>("/waffle_1d/imu", 10);
     }
 
     // シミュレーション＆パブリッシュ（返り値不要）
@@ -100,11 +99,10 @@ public:
         double dt = delta_tim.seconds();
         if (dt == 0) { dt = 0.001; } // ゼロ除算回避
 
-        // ■ nav_msgs::msg::Odometry メッセージの作成
         nav_msgs::msg::Odometry odom_msg;
         odom_msg.header.stamp = now_tim;
-        odom_msg.header.frame_id = "odom";
-        odom_msg.child_frame_id  = "base_link";
+        odom_msg.header.frame_id = "map";
+        odom_msg.child_frame_id  = "base_footprint";
 
         // pose：積分した位置・向き（Quaternionに変換）
         odom_msg.pose.pose.position.x = _odom.x;

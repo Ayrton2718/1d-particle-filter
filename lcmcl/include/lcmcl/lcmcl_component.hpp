@@ -20,20 +20,15 @@ private:
 
     std::unique_ptr<mcl::LPKf>  _lpkf;
     
-    blackbox::PubRecord<lcmcl_msgs::msg::Localization>  _est_pub;
-
 public:
     Lcmcl(const rclcpp::NodeOptions &options = rclcpp::NodeOptions()) : Lcmcl("", options){}
     Lcmcl(const std::string &name_space, const rclcpp::NodeOptions &options = rclcpp::NodeOptions()) 
         : blackbox::BlackBoxNode(blackbox::debug_mode_t::RELEASE, "lcmcl", name_space, options, true)
     {
         this->_tf = std::make_shared<lc::Tf>(this);
-        _tf->enable_send_tf();
         this->_map = std::make_shared<lc::Map>(this);
 
-        _est_pub.init(this, "est_localization", rclcpp::QoS(1).reliable());
-
-        _lpkf = std::make_unique<mcl::LPKf>(this, _tf, _map, &_est_pub);
+        _lpkf = std::make_unique<mcl::LPKf>(this, _tf, _map);
     }
 };
 

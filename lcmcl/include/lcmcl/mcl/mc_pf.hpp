@@ -9,7 +9,6 @@
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <nav_msgs/msg/odometry.hpp>
-#include <lcmcl_msgs/msg/localization.hpp>
 #include <std_msgs/msg/float32_multi_array.hpp>
 
 #include "mc_type.hpp"
@@ -17,7 +16,7 @@
 #include "mc_kf_base.hpp"
 #include "mc_delta.hpp"
 
-// #define PF_VIEW_PARTICLE
+#define PF_VIEW_PARTICLE
 
 namespace mcl
 {
@@ -143,28 +142,6 @@ private:
             this->_particle[i].pos.rad += dist_delta.rad;
             this->_particle[i].weight = 1;
             _outer_weight[i] = 1;
-
-            if(_particle[i].pos.x < 0.2){
-                _particle[i].pos.x = 0.2;
-            }else if(11.800 < _particle[i].pos.x){
-                _particle[i].pos.x = 11.800;
-            }
-
-            if(_particle[i].pos.y < -5.750){
-                _particle[i].pos.y = -5.750;
-            }else if(5.750 < _particle[i].pos.y){
-                _particle[i].pos.y = 5.750;
-            }
-
-            if(7.0 < _particle[i].pos.x && _particle[i].pos.x < 8.2){
-                if((fabs(_particle[i].pos.y) < 1.0) || (2.8 < fabs(_particle[i].pos.y) && fabs(_particle[i].pos.y) < 6.0)){
-                    if(_particle[i].pos.x < 7.5){
-                        _particle[i].pos.x = 7.0;
-                    }else{
-                        _particle[i].pos.x = 8.2;
-                    }
-                }
-            }
         }
     }
 
@@ -347,7 +324,7 @@ public:
         _est_cov(2, 2) = 1.0E+10;
 
 #ifdef PF_VIEW_PARTICLE
-        _part_pub.init(node, "pf_particle", rclcpp::SensorDataQoS());
+        _part_pub.init(node, "pf_particle", rclcpp::QoS(1));
 #endif /*PF_VIEW_PARTICLE*/
     }
 

@@ -6,7 +6,6 @@ find_package(tutrc_ament_node REQUIRED)
 tutrc_ament_init()
 
 tutrc_ament_add_executable(sim_lcmcl    src/sim_lcmcl.cpp)
-tutrc_ament_add_executable(lcmcl_tf_publisher  src/lcmcl_tf_publisher.cpp)
 
 # Install launch files.
 install(DIRECTORY
