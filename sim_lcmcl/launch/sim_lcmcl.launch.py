@@ -28,6 +28,13 @@ def generate_launch_description():
         parameters=[config_file]
     ))
 
+    ld.add_action(Node(
+        package=package_name,
+        executable='tf_broadcaster',
+        name='tf_broadcaster',
+        parameters=[{'odom_topic': '/waffle_1d/true_position'}]
+    ))
+
     ld.add_action(
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(

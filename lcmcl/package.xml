@@ -18,10 +18,8 @@
   <depend>tf2_ros</depend>
   <depend>tf2_geometry_msgs</depend>
   <depend>jsk_rviz_plugins</depend>
-  <depend>tut_tool</depend>
   <depend>blackbox</depend>
   <depend>lc_map</depend>
-  <depend>lcmcl_topics</depend>
   <exec_depend>robot_publisher</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
