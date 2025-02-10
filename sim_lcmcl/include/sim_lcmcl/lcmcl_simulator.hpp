@@ -34,8 +34,6 @@ private:
     std::shared_ptr<lc::Map>     _map;
     std::shared_ptr<lc::Tf>     _tf;
 
-    std::shared_ptr<tf2_ros::TransformBroadcaster>    _tf_pub;
-
     rclcpp::TimerBase::SharedPtr                                    _odom_pub_tim;
 
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr          _joy_sub;
@@ -62,8 +60,6 @@ public:
         this->_tf = std::make_shared<lc::Tf>(this);
         this->_true_pos = _tf->get_initial_pos();
         
-        this->_tf_pub = std::make_shared<tf2_ros::TransformBroadcaster>(this);
-
         this->_map = std::make_shared<lc::Map>(this);
 
         _odometry.init(this, _tf->get_initial_pos());
@@ -132,15 +128,5 @@ public:
         q.setRPY(0, 0, _true_pos.rad);
         true_odom.pose.pose.orientation = tf2::toMsg(q);
         _true_odom_pub->publish(true_odom);
-
-        geometry_msgs::msg::TransformStamped t;
-        t.header.stamp = now;
-        t.header.frame_id = "map";
-        t.child_frame_id = "base_footprint";
-        t.transform.translation.x = _true_pos.x;
-        t.transform.translation.y = _true_pos.y;
-        t.transform.translation.z = 0.0;
-        t.transform.rotation = tf2::toMsg(q);
-        this->_tf_pub->sendTransform(t);
     }
 };
