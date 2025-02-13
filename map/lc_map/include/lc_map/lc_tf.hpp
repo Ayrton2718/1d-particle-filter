@@ -42,12 +42,6 @@ private:
     }
 
 public:
-    Tf(blackbox::BlackBoxNode* node)
-    {
-        this->_buffer_tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
-        this->_listener_tf = std::make_shared<tf2_ros::TransformListener>(*this->_buffer_tf);
-    }
-
     Tf(rclcpp::Node* node)
     {        
         _initial_pos.x = 0;

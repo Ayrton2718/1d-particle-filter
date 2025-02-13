@@ -17,7 +17,7 @@ target_include_directories(${PROJECT_NAME}
 
 # Install launch files.
 install(DIRECTORY
-    config launch
+    config
     DESTINATION share/${PROJECT_NAME}/
 )
 
