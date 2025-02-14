@@ -49,8 +49,11 @@ private:
     {
         // オフセットを加えた Odometry を作成
         auto offset_msg = std::make_shared<nav_msgs::msg::Odometry>(*msg);
-        offset_msg->pose.pose.position.x += x_offset_;
-        offset_msg->pose.pose.position.y += y_offset_;
+        double x = offset_msg->pose.pose.position.x + x_offset_;
+        double y = offset_msg->pose.pose.position.y + y_offset_;
+
+        offset_msg->pose.pose.position.x = x * cos(yaw_offset_) - y * sin(yaw_offset_);
+        offset_msg->pose.pose.position.y = x * sin(yaw_offset_) + y * cos(yaw_offset_);
 
         // 姿勢情報の設定（yaw_offsetを加える）
         tf2::Quaternion q_orig, q_offset, q_new;
