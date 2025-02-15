@@ -22,25 +22,18 @@ private:
     mcl::EKF                _kf;
     mcl::Pf                 _pf;
 
-    pos_t    _tire_lf;
-    pos_t    _tire_rf;
-    pos_t    _tire_lb;
-    pos_t    _tire_rb;
-
-    pos_t   _damper_r_tf;
-    pos_t   _damper_l_tf;
-    std::vector<int> _damper_obs;
-    int     _damper_silo_wall;
-
     // 出力メッセージ型を nav_msgs::msg::Odometry に変更
-    blackbox::PubRecord<nav_msgs::msg::Odometry> _est_pub;
+    blackbox::PubRecord<nav_msgs::msg::Odometry> _pf_odom_pub;
+    blackbox::PubRecord<nav_msgs::msg::Odometry> _ekf_odom_pub;
+
+
     rclcpp::TimerBase::SharedPtr _timeout_tim;
 
 public:
     LPKf(blackbox::BlackBoxNode* node,
          std::shared_ptr<lc::Tf> tf,
          std::shared_ptr<lc::Map> map)
-        : _os(node, std::bind(&LPKf::publish_localization, this, std::placeholders::_1)),
+        : _os(node),
           _sick(node, map, tf, std::bind(&LPKf::sens_callback, this, std::placeholders::_1)),
           _kf(node, &_os, tf->get_initial_pos()),
           _pf(node, &_os, tf->get_initial_pos(), &_sick, &_kf)
@@ -49,7 +42,8 @@ public:
         _tf = tf;
         _map = map;
 
-        _est_pub.init(_node, "est_position");
+        _pf_odom_pub.init(_node, "pf_odom");
+        _ekf_odom_pub.init(_node, "kf_odom");
 
         _timeout_tim = node->create_wall_timer(
             std::chrono::milliseconds(10),
@@ -60,34 +54,47 @@ public:
     {
         _timeout_tim->reset();
 
-        auto pf_obs = _pf.predict(sens_tim);
-        _kf.observation(pf_obs);
+        auto pf_result = _pf.predict(sens_tim);
+        auto kf_result = _kf.predict(pf_result);
 
-        pos_t pos = _kf.predict_pos(std::get<0>(pf_obs));
+        publish_odom(&_pf_odom_pub, &pf_result);
+        publish_odom(&_ekf_odom_pub, &kf_result);
     }
 
-    void publish_localization(rclcpp::Time sens_tim)
-    {
-        pos_t pos = _kf.predict_pos(sens_tim);
-
-        if(std::isnan(pos.x) || std::isnan(pos.y) || std::isnan(pos.rad))
+    void publish_odom(blackbox::PubRecord<nav_msgs::msg::Odometry>* pub, const KfBase::odom_t* result){
+        auto pos = result->pos;
+        if(std::isnan(pos(0)) || std::isnan(pos(1)) || std::isnan(pos(2)))
         {
-            pos.x = 0;
-            pos.y = 0;
-            pos.rad = 0;
+            pos(0) = 0;
+            pos(1) = 0;
+            pos(2) = 0;
         }
 
         nav_msgs::msg::Odometry odom_est;
         odom_est.header.frame_id = "map";
-        odom_est.header.stamp = sens_tim;
+        odom_est.header.stamp = result->tim;
         odom_est.child_frame_id = "base_footprint";
 
-        odom_est.pose.pose.position.x = pos.x;
-        odom_est.pose.pose.position.y = pos.y;
+        odom_est.pose.pose.position.x = pos(0);
+        odom_est.pose.pose.position.y = pos(1);
         odom_est.pose.pose.position.z = 0.0;
 
+        // 共分散
+        std::array<double, 36> cov = {0.0};
+        cov[0] = result->cov(0,0);   // x
+        cov[1] = result->cov(0,1);   // x, y
+        cov[5] = result->cov(0,2);   // x, yaw
+        cov[6] = result->cov(1,0);   // y, x
+        cov[7] = result->cov(1,1);   // y
+        cov[11] = result->cov(1,2);  // y, yaw
+        cov[30] = result->cov(2,0);  // yaw, x
+        cov[31] = result->cov(2,1);  // yaw, y
+        cov[35] = result->cov(2,2);  // yaw
+        
+        odom_est.pose.covariance = cov;
+
         tf2::Quaternion q;
-        q.setRPY(0, 0, pos.rad);
+        q.setRPY(0, 0, result->pos(2));
         q.normalize();
         odom_est.pose.pose.orientation.x = q.x();
         odom_est.pose.pose.orientation.y = q.y();
@@ -101,9 +108,8 @@ public:
         odom_est.twist.twist.angular.y = 0.0;
         odom_est.twist.twist.angular.z = 0.0;
 
-        _est_pub.publish(odom_est);
+        pub->publish(odom_est);
     }
-
 };
 
 }  // namespace mcl

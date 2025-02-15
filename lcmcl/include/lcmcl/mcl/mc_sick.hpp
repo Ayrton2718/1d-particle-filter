@@ -109,24 +109,10 @@ public:
                     if(laser.hit_type != -1 && info->range != 0)
                     {
                         double z = info->range - laser.range;
-                        if(info->range < 0.1){
-                            const float dist1 = 0.01;
-                            pz += exp(-(z * z) / (2 * dist1 * dist1)) * 1.39;
-                            // const float dist2 = 0.15;
-                            // pz += exp(-(z * z) / (2 * dist2 * dist2)) * 0.5;
-                        }else if(info->range < 4)
-                        {
-                            const float dist1 = 0.05;
-                            pz += exp(-(z * z) / (2 * dist1 * dist1)) * 0.89;
-                            const float dist2 = 0.15;
-                            pz += exp(-(z * z) / (2 * dist2 * dist2)) * 0.5;
-                        }else{
-                            const float dist1 = 0.1;
-                            pz += exp(-(z * z) / (2 * dist1 * dist1)) * 0.01;
-                        }
-
-                        // if(is_area(area_t::area1, pos) || is_area(area_t::area2, pos))
-                        //     pz += _z_short * _lambda_short * exp(-_lambda_short * _laser_msg._laser[i]);
+                        const float dist1 = 0.05;
+                        pz += exp(-(z * z) / (2 * dist1 * dist1)) * 0.89;
+                        const float dist2 = 0.15;
+                        pz += exp(-(z * z) / (2 * dist2 * dist2)) * 0.5;
                         pz += 0.01;
                     }
                     else

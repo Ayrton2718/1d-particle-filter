@@ -74,21 +74,19 @@ private:
     }
 
 public:
-    OdomSubscriber(blackbox::BlackBoxNode* node, std::function<void(rclcpp::Time)> cb)
+    OdomSubscriber(blackbox::BlackBoxNode* node)
     {
         _node = node;
         _vel = {0, 0, 0};
 
-        _sub.init(node, "/waffle_1d/odom", rclcpp::QoS(1).reliable(),
-            [this, cb](nav_msgs::msg::Odometry::SharedPtr msg)
+        _sub.init(node, "odom", rclcpp::QoS(1).reliable(),
+            [this](nav_msgs::msg::Odometry::SharedPtr msg)
             {
                 _vel = {
                     msg->twist.twist.linear.x,
                     msg->twist.twist.linear.y,
                     msg->twist.twist.angular.z
                 };
-
-                cb(msg->header.stamp);
             });
     }
 

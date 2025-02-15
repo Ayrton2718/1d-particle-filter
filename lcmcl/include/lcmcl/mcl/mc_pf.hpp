@@ -49,7 +49,7 @@ private:
 
     blackbox::Param<float> _pf_disp_x;
     blackbox::Param<float> _pf_disp_y;
-    blackbox::Param<float> _pf_disp_deg;
+    blackbox::Param<float> _pf_disp_yaw;
 
     pos_t _disp_delta0 = {0.03, 0.03, 0.25 * M_PI / 180};
 
@@ -286,13 +286,13 @@ public:
     {
         this->_node = node;
 
-        _pf_disp_x.init(node, "pf_disp.x", 0.03);
-        _pf_disp_y.init(node, "pf_disp.y", 0.03);
-        _pf_disp_deg.init(node, "pf_disp.deg", 0.25);
+        _pf_disp_x.init(node, "pf.disp_x", 0.03);
+        _pf_disp_y.init(node, "pf.disp_y", 0.03);
+        _pf_disp_yaw.init(node, "pf.disp_yaw", 0.25);
 
         _disp_delta0.x = _pf_disp_x.get();
         _disp_delta0.y = _pf_disp_y.get();
-        _disp_delta0.rad = _pf_disp_deg.get() * M_PI / 180;
+        _disp_delta0.rad = _pf_disp_yaw.get() * M_PI / 180;
 
         _weights_info.init(_node, blackbox::LIB_DEBUG, "pf_weights");
         _resampling_info.init(_node, blackbox::LIB_DEBUG, "pf_resampling");
@@ -328,7 +328,7 @@ public:
 #endif /*PF_VIEW_PARTICLE*/
     }
 
-    KfBase::observation_t predict(rclcpp::Time sens_tim)
+    KfBase::odom_t predict(rclcpp::Time sens_tim)
     {
         this->move(sens_tim);
         this->likelihood(sens_tim);
@@ -348,8 +348,12 @@ public:
         rec_msg.data = {(float)_est_pos(0), (float)_est_pos(1), (float)_est_pos(2),
                         (float)_est_cov(0, 0), (float)_est_cov(1, 1), (float)_est_cov(2, 2)};
         _result_record.record(rec_msg);
-
-        return std::make_tuple(sens_tim, _est_pos, _est_cov);
+        
+        KfBase::odom_t result;
+        result.tim = sens_tim;
+        result.pos = _est_pos;
+        result.cov = _est_cov;
+        return result;
     }
 };
 

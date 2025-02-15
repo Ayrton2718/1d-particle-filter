@@ -51,8 +51,7 @@ def generate_launch_description():
         package='sim_lcmcl',
         executable="lcmcl_tf_publisher",
         namespace="localization",
-        parameters=[
-        ]
+        parameters=[]
     ))
     
     return ld

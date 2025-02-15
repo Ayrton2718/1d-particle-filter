@@ -65,7 +65,7 @@ public:
         _odometry.init(this, _tf->get_initial_pos());
         _sick.init(this,  _map, _tf);
 
-        this->_true_odom_pub = this->create_publisher<nav_msgs::msg::Odometry>("/waffle_1d/true_position", 10);
+        this->_true_odom_pub = this->create_publisher<nav_msgs::msg::Odometry>("/waffle_1d/gazebo_position", 10);
         this->_joy_sub = this->create_subscription<geometry_msgs::msg::Twist>("/waffle_1d/cmd_vel", 10, std::bind(&LcmclSimulator::joy_subscriber, this, std::placeholders::_1));
 
         this->_cmd_pos.x = 0;

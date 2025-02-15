@@ -9,4 +9,13 @@
       - "/waffle_1d/r_laser_range"
       - "/waffle_1d/rb_laser_range"
       - "/waffle_1d/back_laser_range"
+    pf:
+        disp_x: 0.03
+        disp_y: 0.03
+        disp_yaw: 0.3
+    ekf:
+        Qxx: 4.0E-06
+        Qzz: 5.0E-07
+        activeQxx: 1.0E-05
+        activeQzz: 1.0E-08
       

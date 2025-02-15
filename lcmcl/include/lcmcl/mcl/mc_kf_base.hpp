@@ -17,13 +17,16 @@ public:
 
     typedef Eigen::Matrix<float, 3, 1> mat_pos_t;
     typedef Eigen::Matrix<float, 3, 3> mat_cov_t;
-    typedef std::tuple<rclcpp::Time, mat_pos_t, mat_cov_t> observation_t;
+
+    struct odom_t{
+        rclcpp::Time tim;
+        mat_pos_t pos;
+        mat_cov_t cov;
+    };
 
     virtual std::array<double, MCLTYPE_N> calc_weight(rclcpp::Time pf_tim, std::array<lc::pos_t, MCLTYPE_N> pf_pos) = 0;
 
-    virtual void observation(observation_t pf_obs) = 0;
-
-    virtual pos_t predict_pos(rclcpp::Time sens_tim) = 0;
+    virtual KfBase::odom_t predict(KfBase::odom_t pf_obs) = 0;
 };
 
 }
