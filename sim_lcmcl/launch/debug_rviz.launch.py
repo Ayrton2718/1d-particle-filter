@@ -2,6 +2,8 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
+from launch.substitutions import LaunchConfiguration
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, ExecuteProcess
 from launch_ros.actions import Node
 from launch.actions import TimerAction, RegisterEventHandler
 from launch.event_handlers import OnProcessStart
@@ -14,17 +16,22 @@ def generate_launch_description():
         'config', 'aws_small_warehouse', 'map.yaml'
     )
 
+    rosbag_file = LaunchConfiguration('rosbag_file')
+
     # 1. rviz2 ノードの定義
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
         namespace="localization",
         name='mcl_rviz2_debug',
-        arguments=['-d', os.path.join(get_package_share_directory(package_name), 'rviz', 'abu2024_debug.rviz')]
+        arguments=['-d', os.path.join(get_package_share_directory(package_name), 'rviz', 'abu2024_debug.rviz')],
+        parameters=[{
+            'rosbag_panel_bagfile': rosbag_file
+            }]
     )
 
     # 2. map_server ノードの定義
-    map_server_node = Node(
+    map_server = Node(
         package='nav2_map_server',  # 使用するパッケージ名に合わせて変更してください
         executable='map_server',
         name='map_server',
@@ -60,6 +67,10 @@ def generate_launch_description():
 
     return LaunchDescription([
         rviz_node,
-        map_server_node,
+        map_server,
         start_after_rviz_handler,
+        DeclareLaunchArgument(
+            'rosbag_file',
+            default_value='None',
+            description='Whether to execute gzclient)')
     ])
