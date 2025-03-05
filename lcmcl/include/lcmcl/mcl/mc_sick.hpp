@@ -21,10 +21,9 @@ class Sick : public SensBase
 {
 private:
     blackbox::BlackBoxNode* _node;
+    std::shared_ptr<lc::Map>    _map;
 
     blackbox::Logger    _sick_info;
-
-    std::shared_ptr<lc::Map>    _map;
 
     const float             _lambda_short = 0.5;
     const float             _z_short = 0.03;
@@ -43,7 +42,7 @@ private:
     std::vector<std::shared_ptr<range_info_t>>  _laser_info;
 
 public:
-    Sick(blackbox::BlackBoxNode* node, std::shared_ptr<lc::Map> map, std::shared_ptr<Tf> tf, std::function<void(rclcpp::Time sens_tim)> sens_cb) : SensBase(sens_cb)
+    Sick(blackbox::BlackBoxNode* node, std::shared_ptr<lc::Map> map, std::shared_ptr<Tf> tf, std::function<void(rclcpp::Time sens_tim)> predict_cb)
     {
         this->_node = node;
         this->_map = map;
@@ -75,8 +74,8 @@ public:
             TAGGER(_sick_info, "laser topic, %s", topic.c_str());
         }
 
-        _callback_tim = node->create_wall_timer(std::chrono::milliseconds(10), [this](){
-                this->sensor_callback(_node->get_clock()->now());
+        _callback_tim = node->create_wall_timer(std::chrono::milliseconds(10), [this, predict_cb](){
+                predict_cb(_node->now());
             });
     }
 

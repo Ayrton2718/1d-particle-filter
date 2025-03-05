@@ -116,7 +116,7 @@ public:
         this->_odometry.publish(_true_pos);
         this->_sick.publish(_true_pos);
 
-        auto now = this->get_clock()->now();
+        auto now = this->now();
         nav_msgs::msg::Odometry true_odom;
         tf2::Quaternion q;
         true_odom.header.stamp = now;

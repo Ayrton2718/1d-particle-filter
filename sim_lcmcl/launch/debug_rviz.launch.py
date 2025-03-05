@@ -66,11 +66,11 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        rviz_node,
-        map_server,
-        start_after_rviz_handler,
         DeclareLaunchArgument(
             'rosbag_file',
             default_value='None',
-            description='Whether to execute gzclient)')
+            description='Whether to execute gzclient)'),
+        rviz_node,
+        map_server,
+        start_after_rviz_handler
     ])

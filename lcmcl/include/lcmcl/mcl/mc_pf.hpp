@@ -299,7 +299,7 @@ public:
 
         _result_record.init(node, "pf_result");
 
-        _last_tim = _node->get_clock()->now();
+        _last_tim = _node->now();
 
         std::normal_distribution<float> dist_x(initial_pos.x, _disp_delta0.x * 6);
         std::normal_distribution<float> dist_y(initial_pos.y, _disp_delta0.y * 6);

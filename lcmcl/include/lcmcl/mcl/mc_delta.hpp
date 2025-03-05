@@ -66,7 +66,7 @@ public:
 private:
     rclcpp::Time now(void)
     {
-        return _node->get_clock()->now();
+        return _node->now();
     }
 
     pos_t vel(void){

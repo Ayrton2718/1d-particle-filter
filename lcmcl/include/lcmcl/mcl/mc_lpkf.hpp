@@ -34,7 +34,7 @@ public:
          std::shared_ptr<lc::Tf> tf,
          std::shared_ptr<lc::Map> map)
         : _os(node),
-          _sick(node, map, tf, std::bind(&LPKf::sens_callback, this, std::placeholders::_1)),
+          _sick(node, map, tf, std::bind(&LPKf::predict_callback, this, std::placeholders::_1)),
           _kf(node, &_os, tf->get_initial_pos()),
           _pf(node, &_os, tf->get_initial_pos(), &_sick, &_kf)
     {
@@ -47,10 +47,10 @@ public:
 
         _timeout_tim = node->create_wall_timer(
             std::chrono::milliseconds(10),
-            [this]() { this->sens_callback(_node->get_clock()->now()); });
+            [this]() { this->predict_callback(_node->now()); });
     }
 
-    void sens_callback(rclcpp::Time sens_tim)
+    void predict_callback(rclcpp::Time sens_tim)
     {
         _timeout_tim->reset();
 

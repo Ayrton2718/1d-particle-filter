@@ -52,7 +52,7 @@ public:
         this->_enc = {0, 0, 0};
         this->_befor_enc = this->_enc;
         
-        _last_tim = _node->get_clock()->now();
+        _last_tim = _node->now();
 
         _info.init(node, blackbox::INFO, "encoder");
 
@@ -92,7 +92,7 @@ public:
         _befor_pos = true_pos;
         _befor_enc = _enc;
 
-        auto now_tim = _node->get_clock()->now();
+        auto now_tim = _node->now();
         auto delta_tim = now_tim - _last_tim;
         _last_tim = now_tim;
 
