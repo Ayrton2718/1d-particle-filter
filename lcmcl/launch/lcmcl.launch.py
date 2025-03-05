@@ -20,6 +20,9 @@ def generate_launch_description():
     publish_topic_kf = LaunchConfiguration('publish_topic_kf')
     subscribe_topic_odom = LaunchConfiguration('subscribe_topic_odom')
 
+    initial_pos_x = LaunchConfiguration('initial_pos_x')
+    initial_pos_y = LaunchConfiguration('initial_pos_y')
+    initial_pos_yaw = LaunchConfiguration('initial_pos_yaw')
 
     ld = LaunchDescription()
     ld.add_action(DeclareLaunchArgument(
@@ -37,11 +40,30 @@ def generate_launch_description():
         default_value='odom',
         description='kf predict result topic name'))
 
+    ld.add_action(DeclareLaunchArgument(
+        'initial_pos_x',
+        default_value='0.0',
+        description='Initial robot pose (x-axis)'))
+
+    ld.add_action(DeclareLaunchArgument(
+        'initial_pos_y',
+        default_value='0.0',
+        description='Initial robot pose (y-axis)'))
+
+    ld.add_action(DeclareLaunchArgument(
+        'initial_pos_yaw',
+        default_value='0.0',
+        description='Initial robot pose (degree)'))
+
     ld.add_action(Node(
         package=package_name,
         executable="lcmcl",
         namespace=namespace,
-        parameters=[config_file],
+        parameters=[{
+            'initial_pos.x' : initial_pos_x,
+            'initial_pos.y' : initial_pos_y,
+            'initial_pos.yaw' : initial_pos_yaw,
+        }, config_file],
         remappings=[
                 ('pf_odom', publish_topic_pf),
                 ('kf_odom', publish_topic_kf),

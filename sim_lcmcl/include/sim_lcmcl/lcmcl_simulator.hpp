@@ -28,6 +28,10 @@ using namespace std::chrono_literals;
 class LcmclSimulator : public blackbox::BlackBoxNode
 {
 private:
+    blackbox::Param<float> _initial_pos_x;
+    blackbox::Param<float> _initial_pos_y;
+    blackbox::Param<float> _initial_pos_yaw;
+
     sim::Odometry   _odometry;
     sim::Sick       _sick;
     
@@ -55,14 +59,23 @@ public:
     LcmclSimulator(const std::string &name_space, const rclcpp::NodeOptions &options = rclcpp::NodeOptions()) 
         : blackbox::BlackBoxNode(blackbox::debug_mode_t::RELEASE, "sim_lcmcl", name_space, options)
     {
+        _initial_pos_x.init(this, "initial_pos.x", 0.0);
+        _initial_pos_y.init(this, "initial_pos.y", 0.0);
+        _initial_pos_yaw.init(this, "initial_pos.yaw", 0.0);
+
+        pos_t initial_pos;
+        initial_pos.x = _initial_pos_x.get();
+        initial_pos.y = _initial_pos_x.get();
+        initial_pos.rad = _initial_pos_yaw.get() * M_PI / 180;
+
         _info.init(this, blackbox::INFO, "sim_info");
 
         this->_tf = std::make_shared<lc::Tf>(this);
-        this->_true_pos = _tf->get_initial_pos();
+        this->_true_pos = initial_pos;
         
         this->_map = std::make_shared<lc::Map>(this);
 
-        _odometry.init(this, _tf->get_initial_pos());
+        _odometry.init(this, initial_pos);
         _sick.init(this,  _map, _tf);
 
         this->_true_odom_pub = this->create_publisher<nav_msgs::msg::Odometry>("/waffle_1d/gazebo_position", 10);

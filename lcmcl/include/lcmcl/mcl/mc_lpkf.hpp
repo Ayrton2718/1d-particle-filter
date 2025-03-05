@@ -32,11 +32,12 @@ private:
 public:
     LPKf(blackbox::BlackBoxNode* node,
          std::shared_ptr<lc::Tf> tf,
-         std::shared_ptr<lc::Map> map)
+         std::shared_ptr<lc::Map> map,
+         pos_t initial_pos)
         : _os(node),
           _sick(node, map, tf, std::bind(&LPKf::predict_callback, this, std::placeholders::_1)),
-          _kf(node, &_os, tf->get_initial_pos()),
-          _pf(node, &_os, tf->get_initial_pos(), &_sick, &_kf)
+          _kf(node, &_os, initial_pos),
+          _pf(node, &_os, initial_pos, &_sick, &_kf)
     {
         _node = node;
         _tf = tf;

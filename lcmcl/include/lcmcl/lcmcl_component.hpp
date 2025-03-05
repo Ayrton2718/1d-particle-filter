@@ -19,7 +19,11 @@ private:
     std::shared_ptr<lc::Map>    _map;
 
     std::unique_ptr<mcl::LPKf>  _lpkf;
-    
+
+    blackbox::Param<float> _initial_pos_x;
+    blackbox::Param<float> _initial_pos_y;
+    blackbox::Param<float> _initial_pos_yaw;
+
 public:
     Lcmcl(const rclcpp::NodeOptions &options = rclcpp::NodeOptions()) : Lcmcl("", options){}
     Lcmcl(const std::string &name_space, const rclcpp::NodeOptions &options = rclcpp::NodeOptions()) 
@@ -28,7 +32,16 @@ public:
         this->_tf = std::make_shared<lc::Tf>(this);
         this->_map = std::make_shared<lc::Map>(this);
 
-        _lpkf = std::make_unique<mcl::LPKf>(this, _tf, _map);
+        _initial_pos_x.init(this, "initial_pos.x", 0.0);
+        _initial_pos_y.init(this, "initial_pos.y", 0.0);
+        _initial_pos_yaw.init(this, "initial_pos.yaw", 0.0);
+
+        pos_t initial_pos;
+        initial_pos.x = _initial_pos_x.get();
+        initial_pos.y = _initial_pos_y.get();
+        initial_pos.rad = _initial_pos_yaw.get() * M_PI / 180;
+
+        _lpkf = std::make_unique<mcl::LPKf>(this, _tf, _map, initial_pos);
     }
 };
 

@@ -24,8 +24,6 @@ namespace lc
 class Tf
 {
 private:
-    pos_t       _initial_pos;
-
     std::shared_ptr<tf2_ros::Buffer>                        _buffer_tf;
     std::shared_ptr<tf2_ros::TransformListener>             _listener_tf;
 
@@ -44,17 +42,8 @@ private:
 public:
     Tf(rclcpp::Node* node)
     {        
-        _initial_pos.x = 0;
-        _initial_pos.y = 0;
-        _initial_pos.rad = 0;
-
         this->_buffer_tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
         this->_listener_tf = std::make_shared<tf2_ros::TransformListener>(*this->_buffer_tf);
-    }
-
-    pos_t get_initial_pos(void)
-    {
-        return _initial_pos;
     }
 
     trans_t get_tf(std::string str, trans_t dflt={{0, 0, 0}, 0, 0,0})

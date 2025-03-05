@@ -13,9 +13,25 @@ import subprocess
 package_name = 'sim_lcmcl'
 
 def generate_launch_description():
-    subprocess.run(["blackbox_create"]) 
+    subprocess.run(["blackbox_create"])
 
     ld = LaunchDescription()
+
+    ld.add_action(DeclareLaunchArgument(
+        'initial_pos_x',
+        default_value='0.0',
+        description='Initial robot pose (x-axis)'))
+
+    ld.add_action(DeclareLaunchArgument(
+        'initial_pos_y',
+        default_value='0.0',
+        description='Initial robot pose (y-axis)'))
+
+    ld.add_action(DeclareLaunchArgument(
+        'initial_pos_yaw',
+        default_value='0.0',
+        description='Initial robot pose (degree)'))
+    
 
     ld.add_action(
         SetParameter(name='use_sim_time', value=True)
@@ -25,15 +41,12 @@ def generate_launch_description():
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(get_package_share_directory(package_name), 'launch', 'sim_lcmcl.launch.py')
-            )
-        )
-    )
-
-    ld.add_action(
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(get_package_share_directory('simulation_launcher'), 'launch', 'robot_state_publisher.launch.py')
-            )
+            ),
+            launch_arguments={
+                'initial_pos_x' : initial_pos_x,
+                'initial_pos_y' : initial_pos_y,
+                'initial_pos_yaw' : initial_pos_yaw
+            }.items()
         )
     )
 
@@ -41,6 +54,22 @@ def generate_launch_description():
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(get_package_share_directory('lcmcl'), 'launch', 'lcmcl.launch.py')
+            ),
+            launch_arguments={
+                'initial_pos_x' : initial_pos_x,
+                'initial_pos_y' : initial_pos_y,
+                'initial_pos_yaw' : initial_pos_yaw,
+                'publish_topic_pf': 'pf_odom',
+                'publish_topic_kf': 'kf_odom',
+                'subscribe_topic_odom': '/waffle_1d/odom',
+            }.items()
+        )
+    )
+
+    ld.add_action(
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(get_package_share_directory('simulation_launcher'), 'launch', 'robot_state_publisher.launch.py')
             )
         )
     )
